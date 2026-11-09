@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#244536">
+<title>مجمع القدس</title>
+<style>
+:root{--green:#102b22;--bg:#101714;--ink:#edf4ef;--muted:#a5b5ab;--card:#1b2721;--line:#35483e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:Arial,sans-serif;color:var(--ink)}
+header{background:var(--green);padding:20px 17px 22px;border-radius:0 0 23px 23px;color:white}
+.brand{font-size:22px;font-weight:800}
+.sub{font-size:13px;color:#dce8df;margin-top:7px}
+.search{padding:14px}
+input,textarea{width:100%;padding:13px;border:1px solid var(--line);border-radius:11px;background:var(--card);font-size:15px;margin:6px 0 12px;color:var(--ink)}
+main{padding:10px 14px 95px}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin:20px 0 12px}
+.section-head h3{margin:0;font-size:18px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.cat{background:var(--card);border-radius:14px;padding:14px 5px;text-align:center;font-size:14px}
+.cat.active{outline:2px solid #5c9b78}
+.products{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.product{background:var(--card);border-radius:15px;padding:10px;overflow:hidden}
+.placeholder{height:125px;background:#26372e;border-radius:10px;display:grid;place-items:center;font-size:35px}
+.product h4{margin:9px 0 5px;font-size:15px}
+.price{color:#77c99a;font-weight:800}
+.old{color:#89948d;text-decoration:line-through;font-size:12px;margin-left:5px}
+.note{font-size:12px;color:var(--muted);margin-top:6px}
+.add-cart{width:100%;margin-top:9px;background:#294237;color:#e7f0e9;padding:10px;border:0;border-radius:11px;font-weight:700}
+.empty{background:var(--card);border-radius:14px;padding:20px;text-align:center;color:var(--muted);grid-column:1/-1}
+.overlay{position:fixed;inset:0;background:#101a15c9;display:none;align-items:flex-end;justify-content:center;z-index:5}
+.panel{background:var(--bg);width:100%;max-width:600px;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;padding:18px}
+.close{float:left;background:#294237;color:#fff;border:0;border-radius:10px;padding:10px}
+.cart-line{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card);border-radius:12px;padding:10px;margin:8px 0}
+.qty{display:flex;align-items:center;gap:8px}
+.qty button{padding:6px 11px;background:#294237;color:white;border:0;border-radius:8px}
+.total{display:flex;justify-content:space-between;padding:8px 0;font-weight:700}
+.primary{background:var(--green);color:white;border:0;border-radius:12px;padding:13px;font-weight:700}
+.small{font-size:12px;color:var(--muted);line-height:1.7}
+footer{position:fixed;bottom:0;left:0;right:0;background:#17221c;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:13px 5px;color:#dce8df;font-size:13px}
+button{cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+<div class="brand">🛍️ مجمع القدس</div>
+<div class="sub">كل احتياجاتكم بمكان واحد ❤️ · التوصيل مجاني داخل النجف</div>
+</header>
+
+<div class="search">
+<input id="search" placeholder="🔍 ابحث عن منتج..." oninput="renderProducts()">
+</div>
+
+<main>
+<div class="section-head"><h3>أقسام المجمع</h3></div>
+<div id="categories" class="grid">جاري التحميل...</div>
+<div class="section-head">
+<h3>🔥 العروض والمنتجات</h3>
+<button class="add-cart" style="width:auto;margin:0" onclick="loadCatalog()">تحديث</button>
+</div>
+<div id="products" class="products">جاري تحميل المنتجات...</div>
+</main>
+
+<footer>
+<span onclick="window.scrollTo({top:0,behavior:'smooth'})">🏠 الرئيسية</span>
+<span onclick="document.getElementById('categories').scrollIntoView({behavior:'smooth'})">▦ الأقسام</span>
+<span onclick="openCart()">🛒 السلة <b id="cartCount">0</b></span>
+<span onclick="openCart()">👤 طلباتي</span>
+</footer>
+
+<div class="overlay" id="cartOverlay">
+<div class="panel">
+<button class="close" onclick="closeCart()">إغلاق ✕</button>
+<h2>🛒 سلة مشترياتك</h2>
+<div id="cartItems"></div>
+<div id="cartSummary"></div>
+<hr style="border-color:#35483e">
+<h3>بيانات التوصيل</h3>
+<input id="custName" placeholder="الاسم الكامل">
+<input id="custPhone" type="tel" placeholder="رقم الهاتف">
+<textarea id="custAddress" placeholder="العنوان بالتفصيل داخل النجف"></textarea>
+<input id="coupon" placeholder="كود الخصم (اختياري)">
+<button class="primary" style="width:100%" onclick="submitOrder()">تأكيد الطلب</button>
+<p class="small">🚚 التوصيل مجاني داخل النجف.</p>
+</div>
+</div>
+
+<script>
+const API='https://alqudsadsbot.fadehost.app';
+let catalog={categories:[],products:[]};
+let cart={};
+let selectedCategory='';
+
+async function loadCatalog(){
+const p=document.getElementById('products');
+p.innerHTML='<div class="empty">جاري تحميل المنتجات...</div>';
+try{
+const r=await fetch(API+'/api/catalog');
+if(!r.ok)throw new Error('HTTP '+r.status);
+catalog=await r.json();
+renderCategories();
+renderProducts();
+}catch(e){
+p.innerHTML='<div class="empty">تعذر تحميل المنتجات حالياً. اضغط تحديث لاحقاً.</div>';
+document.getElementById('categories').innerHTML='<div class="empty">تعذر تحميل الأقسام</div>';
+console.error(e);
+}
+}
+
+function renderCategories(){
+const el=document.getElementById('categories');
+el.innerHTML='<div class="cat '+(!selectedCategory?'active':'')+'" onclick="chooseCategory(\'\')">الكل 🛍️</div>'+
+catalog.categories.map(c=>`<div class="cat ${selectedCategory===String(c.id)?'active':''}" onclick="chooseCategory('${c.id}')">📁 ${esc(c.name)}</div>`).join('');
+}
+
+function chooseCategory(id){
+selectedCategory=String(id);
+renderCategories();
+renderProducts();
+}
+
+function renderProducts(){
+const q=(document.getElementById('search')?.value||'').trim().toLowerCase();
+let list=catalog.products.filter(p=>
+(!q||p.name.toLowerCase().includes(q)||String(p.category||'').toLowerCase().includes(q))&&
+(!selectedCategory||String(p.category_id)===selectedCategory)
+);
+document.getElementById('products').innerHTML=list.map(p=>{
+let offer=p.offer;
+let price=offer?Number(offer.price):Number(p.price);
+let old=offer?Number(offer.original_price):0;
+return `<div class="product">
+<div class="placeholder">${offer?'🔥':'🛍️'}</div>
+<h4>${esc(p.name)}</h4>
+<div class="small">${esc(p.category||'')}</div>
+<div class="price">${old?`<span class="old">${old.toLocaleString()} د.ع</span>`:''}${price.toLocaleString()} د.ع</div>
+${p.description?`<div class="note">${esc(p.description)}</div>`:''}
+<button class="add-cart" onclick="addToCart(${p.id})">أضف إلى السلة 🛒</button>
+</div>`;
+}).join('')||'<div class="empty">ماكو منتجات بهذا القسم حالياً.</div>';
+}
+
+function addToCart(id){
+cart[id]=(cart[id]||0)+1;
+updateCount();
+alert('انضاف المنتج للسلة ❤️');
+}
+
+function updateCount(){
+document.getElementById('cartCount').textContent=Object.values(cart).reduce((a,b)=>a+b,0);
+}
+
+function entries(){
+return Object.entries(cart).map(([id,quantity])=>({
+p:catalog.products.find(x=>x.id===Number(id)),quantity
+})).filter(x=>x.p);
+}
+
+function openCart(){
+document.getElementById('cartOverlay').style.display='flex';
+renderCart();
+}
+
+function closeCart(){
+document.getElementById('cartOverlay').style.display='none';
+}
+
+function currentPrice(p){
+return Number(p.offer?p.offer.price:p.price);
+}
+
+function changeQty(id,d){
+cart[id]=(cart[id]||0)+d;
+if(cart[id]<=0)delete cart[id];
+renderCart();
+}
+
+function renderCart(){
+let es=entries();
+document.getElementById('cartItems').innerHTML=es.length?
+es.map(({p,quantity})=>`<div class="cart-line">
+<div><b>${esc(p.name)}</b></div>
+<div class="qty">
+<button onclick="changeQty(${p.id},-1)">−</button>
+<b>${quantity}</b>
+<button onclick="changeQty(${p.id},1)">+</button>
+</div></div>`).join(''):
+'<div class="empty">السلة فارغة، أضف منتجات أولاً.</div>';
+
+let total=es.reduce((s,x)=>s+currentPrice(x.p)*x.quantity,0);
+document.getElementById('cartSummary').innerHTML=
+`<div class="total"><span>المجموع التقريبي</span><span>${total.toLocaleString()} د.ع</span></div>
+<div class="small">السعر النهائي والكوبون يتحقق منهما الخادم عند تأكيد الطلب.</div>`;
+updateCount();
+}
+
+async function submitOrder(){
+let es=entries();
+if(!es.length)return alert('السلة فارغة');
+
+let customer=document.getElementById('custName').value.trim();
+let phone=document.getElementById('custPhone').value.trim();
+let address=document.getElementById('custAddress').value.trim();
+let coupon=document.getElementById('coupon').value.trim();
+
+if(!customer||!phone||!address)return alert('يرجى ملء الاسم ورقم الهاتف والعنوان');
+
+let btn=document.querySelector('#cartOverlay .primary');
+btn.disabled=true;
+btn.textContent='جاري إرسال الطلب...';
+
+try{
+let r=await fetch(API+'/api/orders',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({
+customer,phone,address,coupon,
+items:es.map(x=>({product_id:x.p.id,quantity:x.quantity}))
+})
+});
+let result=await r.json();
+if(!r.ok)throw new Error(result.error||'تعذر تسجيل الطلب');
+alert(result.message||'تم تسجيل الطلب بنجاح');
+cart={};
+['custName','custPhone','custAddress','coupon'].forEach(id=>document.getElementById(id).value='');
+closeCart();
+updateCount();
+}catch(e){
+alert(e.message+'\nإذا استمرت المشكلة أرسل صورة الخطأ.');
+}finally{
+btn.disabled=false;
+btn.textContent='تأكيد الطلب';
+}
+}
+
+function esc(s){
+return String(s??'').replace(/[&<>"']/g,c=>({
+'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+}[c]));
+}
+
+loadCatalog();
+</script>
+</body>
+</html>
