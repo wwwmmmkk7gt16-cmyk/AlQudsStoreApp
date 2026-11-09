@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -14,15 +15,17 @@ header{background:var(--green);padding:20px 17px 22px;border-radius:0 0 23px 23p
 .sub{font-size:13px;color:#dce8df;margin-top:7px}
 .search{padding:14px}
 input,textarea{width:100%;padding:13px;border:1px solid var(--line);border-radius:11px;background:var(--card);font-size:15px;margin:6px 0 12px;color:var(--ink)}
+input::placeholder,textarea::placeholder{color:#a5b5ab}
 main{padding:10px 14px 95px}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin:20px 0 12px}
 .section-head h3{margin:0;font-size:18px}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
-.cat{background:var(--card);border-radius:14px;padding:14px 5px;text-align:center;font-size:14px}
+.cat{background:var(--card);border-radius:14px;padding:14px 5px;text-align:center;font-size:14px;cursor:pointer}
 .cat.active{outline:2px solid #5c9b78}
 .products{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
 .product{background:var(--card);border-radius:15px;padding:10px;overflow:hidden}
-.placeholder{height:125px;background:#26372e;border-radius:10px;display:grid;place-items:center;font-size:35px}
+.placeholder{height:150px;background:#26372e;border-radius:10px;display:grid;place-items:center;overflow:hidden;font-size:35px}
+.placeholder img{width:100%;height:100%;object-fit:cover;display:block}
 .product h4{margin:9px 0 5px;font-size:15px}
 .price{color:#77c99a;font-weight:800}
 .old{color:#89948d;text-decoration:line-through;font-size:12px;margin-left:5px}
@@ -38,11 +41,14 @@ main{padding:10px 14px 95px}
 .total{display:flex;justify-content:space-between;padding:8px 0;font-weight:700}
 .primary{background:var(--green);color:white;border:0;border-radius:12px;padding:13px;font-weight:700}
 .small{font-size:12px;color:var(--muted);line-height:1.7}
-footer{position:fixed;bottom:0;left:0;right:0;background:#17221c;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:13px 5px;color:#dce8df;font-size:13px}
+footer{position:fixed;bottom:0;left:0;right:0;background:#17221c;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:13px 5px;color:#dce8df;font-size:13px;z-index:4}
 button{cursor:pointer}
+button:disabled{opacity:.6;cursor:not-allowed}
+@media(max-width:360px){.grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
+
 <header>
 <div class="brand">🛍️ مجمع القدس</div>
 <div class="sub">كل احتياجاتكم بمكان واحد ❤️ · التوصيل مجاني داخل النجف</div>
@@ -54,7 +60,8 @@ button{cursor:pointer}
 
 <main>
 <div class="section-head"><h3>أقسام المجمع</h3></div>
-<div id="categories" class="grid">جاري التحميل...</div>
+<div id="categories" class="grid">جاري تحميل الأقسام...</div>
+
 <div class="section-head">
 <h3>🔥 العروض والمنتجات</h3>
 <button class="add-cart" style="width:auto;margin:0" onclick="loadCatalog()">تحديث</button>
@@ -88,6 +95,7 @@ button{cursor:pointer}
 
 <script>
 const API='https://alqudsadsbot.fadehost.app';
+
 let catalog={categories:[],products:[]};
 let cart={};
 let selectedCategory='';
@@ -95,23 +103,35 @@ let selectedCategory='';
 async function loadCatalog(){
 const p=document.getElementById('products');
 p.innerHTML='<div class="empty">جاري تحميل المنتجات...</div>';
+
 try{
 const r=await fetch(API+'/api/catalog');
 if(!r.ok)throw new Error('HTTP '+r.status);
-catalog=await r.json();
+
+const data=await r.json();
+catalog={
+categories:Array.isArray(data.categories)?data.categories:[],
+products:Array.isArray(data.products)?data.products:[]
+};
+
 renderCategories();
 renderProducts();
+
 }catch(e){
 p.innerHTML='<div class="empty">تعذر تحميل المنتجات حالياً. اضغط تحديث لاحقاً.</div>';
 document.getElementById('categories').innerHTML='<div class="empty">تعذر تحميل الأقسام</div>';
-console.error(e);
+console.error('Catalog error:',e);
 }
 }
 
 function renderCategories(){
 const el=document.getElementById('categories');
-el.innerHTML='<div class="cat '+(!selectedCategory?'active':'')+'" onclick="chooseCategory(\'\')">الكل 🛍️</div>'+
-catalog.categories.map(c=>`<div class="cat ${selectedCategory===String(c.id)?'active':''}" onclick="chooseCategory('${c.id}')">📁 ${esc(c.name)}</div>`).join('');
+
+el.innerHTML=
+'<div class="cat '+(!selectedCategory?'active':'')+'" onclick="chooseCategory(\'\')">الكل 🛍️</div>'+
+catalog.categories.map(c=>
+`<div class="cat ${selectedCategory===String(c.id)?'active':''}" onclick="chooseCategory('${c.id}')">📁 ${esc(c.name)}</div>`
+).join('');
 }
 
 function chooseCategory(id){
@@ -122,16 +142,23 @@ renderProducts();
 
 function renderProducts(){
 const q=(document.getElementById('search')?.value||'').trim().toLowerCase();
+
 let list=catalog.products.filter(p=>
-(!q||p.name.toLowerCase().includes(q)||String(p.category||'').toLowerCase().includes(q))&&
+(!q||String(p.name||'').toLowerCase().includes(q)||String(p.category||'').toLowerCase().includes(q))&&
 (!selectedCategory||String(p.category_id)===selectedCategory)
 );
+
 document.getElementById('products').innerHTML=list.map(p=>{
 let offer=p.offer;
 let price=offer?Number(offer.price):Number(p.price);
 let old=offer?Number(offer.original_price):0;
+
+let photo=p.photo_id
+? `<img src="${API}/api/image/${encodeURIComponent(p.photo_id)}" alt="${esc(p.name)}" loading="lazy" onerror="this.onerror=null;this.parentElement.textContent='🛍️';">`
+: (offer?'🔥':'🛍️');
+
 return `<div class="product">
-<div class="placeholder">${offer?'🔥':'🛍️'}</div>
+<div class="placeholder">${photo}</div>
 <h4>${esc(p.name)}</h4>
 <div class="small">${esc(p.category||'')}</div>
 <div class="price">${old?`<span class="old">${old.toLocaleString()} د.ع</span>`:''}${price.toLocaleString()} د.ع</div>
@@ -148,12 +175,14 @@ alert('انضاف المنتج للسلة ❤️');
 }
 
 function updateCount(){
-document.getElementById('cartCount').textContent=Object.values(cart).reduce((a,b)=>a+b,0);
+document.getElementById('cartCount').textContent=
+Object.values(cart).reduce((a,b)=>a+b,0);
 }
 
 function entries(){
 return Object.entries(cart).map(([id,quantity])=>({
-p:catalog.products.find(x=>x.id===Number(id)),quantity
+p:catalog.products.find(x=>Number(x.id)===Number(id)),
+quantity
 })).filter(x=>x.p);
 }
 
@@ -178,6 +207,7 @@ renderCart();
 
 function renderCart(){
 let es=entries();
+
 document.getElementById('cartItems').innerHTML=es.length?
 es.map(({p,quantity})=>`<div class="cart-line">
 <div><b>${esc(p.name)}</b></div>
@@ -189,9 +219,11 @@ es.map(({p,quantity})=>`<div class="cart-line">
 '<div class="empty">السلة فارغة، أضف منتجات أولاً.</div>';
 
 let total=es.reduce((s,x)=>s+currentPrice(x.p)*x.quantity,0);
+
 document.getElementById('cartSummary').innerHTML=
 `<div class="total"><span>المجموع التقريبي</span><span>${total.toLocaleString()} د.ع</span></div>
 <div class="small">السعر النهائي والكوبون يتحقق منهما الخادم عند تأكيد الطلب.</div>`;
+
 updateCount();
 }
 
@@ -204,7 +236,8 @@ let phone=document.getElementById('custPhone').value.trim();
 let address=document.getElementById('custAddress').value.trim();
 let coupon=document.getElementById('coupon').value.trim();
 
-if(!customer||!phone||!address)return alert('يرجى ملء الاسم ورقم الهاتف والعنوان');
+if(!customer||!phone||!address)
+return alert('يرجى ملء الاسم ورقم الهاتف والعنوان');
 
 let btn=document.querySelector('#cartOverlay .primary');
 btn.disabled=true;
@@ -219,15 +252,25 @@ customer,phone,address,coupon,
 items:es.map(x=>({product_id:x.p.id,quantity:x.quantity}))
 })
 });
+
 let result=await r.json();
+
 if(!r.ok)throw new Error(result.error||'تعذر تسجيل الطلب');
-alert(result.message||'تم تسجيل الطلب بنجاح');
+
+alert(result.message||'تم تسجيل الطلب بنجاح ❤️');
+
 cart={};
-['custName','custPhone','custAddress','coupon'].forEach(id=>document.getElementById(id).value='');
+['custName','custPhone','custAddress','coupon'].forEach(id=>{
+document.getElementById(id).value='';
+});
+
 closeCart();
 updateCount();
+
 }catch(e){
 alert(e.message+'\nإذا استمرت المشكلة أرسل صورة الخطأ.');
+console.error('Order error:',e);
+
 }finally{
 btn.disabled=false;
 btn.textContent='تأكيد الطلب';
@@ -236,7 +279,11 @@ btn.textContent='تأكيد الطلب';
 
 function esc(s){
 return String(s??'').replace(/[&<>"']/g,c=>({
-'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+'&':'&amp;',
+'<':'&lt;',
+'>':'&gt;',
+'"':'&quot;',
+"'":'&#39;'
 }[c]));
 }
 
