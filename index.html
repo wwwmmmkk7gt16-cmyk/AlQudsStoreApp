@@ -91,6 +91,8 @@ button:disabled{opacity:.6;cursor:not-allowed}
 <span onclick="openCart()">👤 إتمام الطلب</span>
 </footer>
 
+<div class="top-cart-wrap"><button class="top-cart" style="background:#201a10;color:#f0d99a" onclick="openAuth()">👤 حسابي · تسجيل الدخول / إنشاء حساب</button><div id="accountState" class="small" style="text-align:center;margin-top:6px">التسجيل مطلوب لإتمام الطلب</div></div>
+<div class="overlay" id="authOverlay"><div class="panel"><button class="close" onclick="closeAuth()">إغلاق ✕</button><h2>👤 حساب مجمع القدس</h2><div id="authMessage" class="small">أنشئ حساباً أو سجّل الدخول</div><input id="authName" placeholder="الاسم الكامل"><input id="authPhone" type="tel" placeholder="رقم الهاتف"><input id="authPassword" type="password" placeholder="كلمة المرور (8 أحرف على الأقل)"><button class="primary" style="width:100%;margin:6px 0" onclick="registerAccount()">إنشاء حساب والتحقق عبر تليگرام</button><button class="add-cart" onclick="loginAccount()">تسجيل الدخول</button><button class="add-cart" style="background:#292319;color:#f0d99a" onclick="logoutAccount()">تسجيل الخروج</button></div></div>
 <div class="overlay" id="cartOverlay">
 <div class="panel">
 <button class="close" onclick="closeCart()">إغلاق ✕</button>
@@ -113,6 +115,23 @@ const API='https://alqudsadsbot.fadehost.app';
 let catalog={categories:[],products:[]};
 let cart={};
 let selectedCategory='';
+let authToken=localStorage.getItem('alq_auth_token')||'';
+function openAuth(){document.getElementById('authOverlay').style.display='flex';}
+function closeAuth(){document.getElementById('authOverlay').style.display='none';}
+function authHeaders(){return {'Content-Type':'application/json','Authorization':'Bearer '+authToken};}
+async function registerAccount(){
+ const name=document.getElementById('authName').value.trim(),phone=document.getElementById('authPhone').value.trim(),password=document.getElementById('authPassword').value;
+ const box=document.getElementById('authMessage');
+ if(!name||!phone||password.length<8){box.textContent='أدخل الاسم والرقم وكلمة مرور من 8 أحرف على الأقل';return;}
+ try{const r=await fetch(API+'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,phone,password})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر التسجيل');box.innerHTML='افتح رابط التحقق: <a target="_blank" rel="noopener" href="'+d.verify_url+'">@AlQudsVerifyBot</a><br>اضغط Start وشارك رقم هاتفك، ثم ارجع وسجّل الدخول.';}catch(e){box.textContent=e.message;}
+}
+async function loginAccount(){
+ const phone=document.getElementById('authPhone').value.trim(),password=document.getElementById('authPassword').value,box=document.getElementById('authMessage');
+ try{const r=await fetch(API+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,password})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر الدخول');authToken=d.token;localStorage.setItem('alq_auth_token',authToken);document.getElementById('custName').value=d.account.name;document.getElementById('custPhone').value=d.account.phone;document.getElementById('accountState').textContent='مرحباً '+d.account.name+' ❤️';box.textContent='تم تسجيل الدخول بنجاح';}catch(e){box.textContent=e.message;}
+}
+async function logoutAccount(){if(authToken){try{await fetch(API+'/api/auth/logout',{method:'POST',headers:authHeaders()});}catch(e){}}authToken='';localStorage.removeItem('alq_auth_token');document.getElementById('accountState').textContent='التسجيل مطلوب لإتمام الطلب';document.getElementById('authMessage').textContent='تم تسجيل الخروج';}
+async function checkAccount(){if(!authToken)return;try{const r=await fetch(API+'/api/auth/me',{headers:{'Authorization':'Bearer '+authToken}});if(!r.ok)throw new Error();const d=await r.json();document.getElementById('accountState').textContent='مرحباً '+d.account.name+' ❤️';document.getElementById('custName').value=d.account.name;document.getElementById('custPhone').value=d.account.phone;}catch(e){authToken='';localStorage.removeItem('alq_auth_token');}}
+
 
 async function loadCatalog(){
 const p=document.getElementById('products');
@@ -217,7 +236,7 @@ if(!customer||!phone||!address)return alert('يرجى ملء الاسم ورقم
 let btn=document.querySelector('#cartOverlay .primary');
 btn.disabled=true;btn.textContent='جاري إرسال الطلب...';
 try{
-let r=await fetch(API+'/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({customer,phone,address,coupon,items:es.map(x=>({product_id:x.p.id,quantity:x.quantity}))})});
+let r=await fetch(API+'/api/orders',{method:'POST',headers:authHeaders(),body:JSON.stringify({customer,phone,address,coupon,items:es.map(x=>({product_id:x.p.id,quantity:x.quantity}))})});
 let result=await r.json();
 if(!r.ok)throw new Error(result.error||'تعذر تسجيل الطلب');
 alert(result.message||'تم تسجيل الطلب بنجاح ❤️');
@@ -230,6 +249,7 @@ finally{btn.disabled=false;btn.textContent='تأكيد الطلب';}
 function esc(s){
 return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+checkAccount();
 loadCatalog();
 </script>
 </body>
